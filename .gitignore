@@ -12,5 +12,9 @@ tours.json
 photos.json
 resize_country_images.sh
 
+# Local tools
+rclone
+
 # macOS
 .DS_Store
+**/.DS_Store
