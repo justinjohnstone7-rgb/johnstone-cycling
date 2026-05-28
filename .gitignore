@@ -15,6 +15,9 @@ resize_country_images.sh
 # Local tools
 rclone
 
+# Cloudflare Pages build output
+public/
+
 # macOS
 .DS_Store
 **/.DS_Store
