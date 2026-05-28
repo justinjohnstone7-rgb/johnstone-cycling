@@ -1495,7 +1495,7 @@ function setCountryFloat(country,color,dateRange,stats){
   }
 }
 
-function hideCountryPanel(){document.getElementById('country-panel').classList.remove('visible');disablePhotoPins();}
+function hideCountryPanel(){document.getElementById('country-panel').classList.remove('visible');}
 
 function showCountryPanel(country){
   fetch(`assets/countries/${country}.json`)
@@ -1636,12 +1636,11 @@ fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/coun
 preloadGPXConnections();
 
 // ── Photo pins ──
-let photoRawData=null;      // raw [{lat,lon,path}] — loaded once
-let photoMarkerCache={};    // index → Leaflet marker, created on demand
-let photoPinsEnabled=false; // only active when a country is selected
+let photoRawData=null;   // raw [{lat,lon,path}] — loaded once
+let photoMarkerCache={}; // index → Leaflet marker, created on demand
 
 function updatePhotoPinVisibility(){
-  if(!photoPinsEnabled||!photoRawData) return;
+  if(!photoRawData) return;
   const zoom=map.getZoom();
   const bounds=map.getBounds().pad(0.2);
   photoRawData.forEach((photo,i)=>{
@@ -1667,18 +1666,12 @@ function updatePhotoPinVisibility(){
   });
 }
 
-function enablePhotoPins(){
-  if(photoRawData){photoPinsEnabled=true;updatePhotoPinVisibility();return;}
+function loadPhotoPins(){
+  if(photoRawData){updatePhotoPinVisibility();return;}
   fetch('touring_photos.json').then(r=>r.json()).then(photos=>{
     photoRawData=photos;
-    photoPinsEnabled=true;
     updatePhotoPinVisibility();
   }).catch(()=>{});
-}
-
-function disablePhotoPins(){
-  photoPinsEnabled=false;
-  Object.values(photoMarkerCache).forEach(m=>{if(map.hasLayer(m))map.removeLayer(m);});
 }
 
 // ── Elevation ──
@@ -1832,7 +1825,7 @@ function selectCountry(countryData,country,features,color){
   fitBoundsWithSidebar(L.featureGroup(countryData.map(d=>d.visLayer)),420,40);
   showCountryPanel(country);
   showResetBtn();
-  enablePhotoPins();
+  loadPhotoPins();
 }
 
 function updateTourButtonSubtitles(){
