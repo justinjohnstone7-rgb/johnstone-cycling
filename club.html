@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NYC Bike + Brew · Johnstone Cycling</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1a1814;
+      --ink-mid: #6b6760;
+      --ink-light: #b0ada8;
+      --rule: #e8e4de;
+      --paper: #faf8f5;
+      --white: #ffffff;
+      --accent: #2a7fb8;
+      --accent-pale: #e8f4fd;
+      --sidebar-width: 320px;
+      --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      display: flex; height: 100vh; overflow: hidden;
+      background: #2a2620; color: var(--ink);
+    }
+
+    #map { position: fixed; inset: 0; z-index: 0; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      position: relative; z-index: 10; height: 100vh;
+      width: var(--sidebar-width); flex-shrink: 0;
+      display: flex; flex-direction: column;
+      background: var(--white); box-shadow: 4px 0 40px rgba(0,0,0,0.25);
+      transition: width var(--transition);
+    }
+    #sidebar.minimized { width: 48px; }
+
+    #minimize-btn {
+      position: absolute; top: 50%; right: -16px; transform: translateY(-50%);
+      width: 32px; height: 32px; background: var(--white); border: 1px solid var(--rule);
+      border-radius: 50%; cursor: pointer; z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.12); transition: background 0.15s;
+      font-size: 13px; color: var(--ink-mid);
+    }
+    #minimize-btn:hover { background: var(--paper); color: var(--ink); }
+
+    #minimized-strip {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 12px; padding: 16px 0;
+    }
+    #sidebar.minimized #minimized-strip { display: flex; }
+    #sidebar.minimized #main-panel { display: none !important; }
+    #sidebar.is-expanding #main-panel { opacity: 0 !important; pointer-events: none !important; }
+
+    .minimized-label {
+      writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);
+      font-size: 10px; font-weight: 500; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--ink-light);
+    }
+
+    /* ── Back nav ── */
+    #back-bar {
+    padding: 12px 16px; border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    background: var(--paper);
+    }
+    #back-link {
+    display: flex; align-items: center; gap: 8px; text-decoration: none;
+    font-size: 12px; font-weight: 500; color: var(--ink); transition: all 0.15s;
+    }
+    #back-link:hover { color: var(--accent); }
+
+    /* ── Header ── */
+    #club-header {
+      padding: 14px 20px; border-bottom: 1px solid var(--rule); flex-shrink: 0;
+      display: flex; align-items: center; gap: 14px;
+    }
+    #club-logo {
+      width: 68px; height: 68px; border-radius: 50%; object-fit: cover;
+      border: 2px solid var(--rule); flex-shrink: 0;
+    }
+    #club-header-text { flex: 1; min-width: 0; }
+    .club-eyebrow {
+      font-size: 9px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--ink-light); margin-bottom: 4px;
+    }
+    #club-title {
+      font-family: 'Playfair Display', serif; font-size: 22px;
+      font-weight: 400; color: var(--ink); line-height: 1.1; margin-bottom: 2px;
+    }
+    #club-subtitle { font-size: 11px; color: var(--ink-light); font-style: italic; margin-bottom: 5px; }
+    #club-ig {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 500; color: #E1306C;
+      text-decoration: none; opacity: 0.8; transition: opacity 0.15s;
+    }
+    #club-ig:hover { opacity: 1; }
+
+    /* ── Chapters bar ── */
+    #chapters-bar {
+      padding: 8px 16px; border-bottom: 1px solid var(--rule); flex-shrink: 0;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    #chapters-label {
+      font-size: 9px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--ink-light); white-space: nowrap;
+    }
+    .chapter-ig {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 500; color: #E1306C;
+      text-decoration: none; opacity: 0.7; transition: opacity 0.15s;
+    }
+    .chapter-ig:hover { opacity: 1; }
+    .chapter-divider { font-size: 10px; color: var(--rule); }
+
+    /* ── Stats bar ── */
+    #stats-bar {
+      display: flex; border-bottom: 1px solid var(--rule); flex-shrink: 0;
+    }
+    .stat { flex: 1; padding: 10px 0; text-align: center; border-right: 1px solid var(--rule); }
+    .stat:last-child { border-right: none; }
+    .stat-num {
+      font-family: 'Playfair Display', serif; font-size: 22px;
+      font-weight: 400; color: var(--ink); line-height: 1;
+    }
+    .stat-label { font-size: 8.5px; color: var(--ink-light); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+    /* ── Year filter ── */
+    #year-filter {
+      padding: 10px 14px; border-bottom: 1px solid var(--rule);
+      display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;
+    }
+    .year-pill {
+      padding: 4px 12px; border-radius: 20px; border: 1px solid var(--rule);
+      font-size: 11px; font-weight: 500; cursor: pointer; background: var(--white);
+      color: var(--ink-mid); transition: all 0.15s; letter-spacing: 0.3px;
+    }
+    .year-pill:hover { border-color: var(--accent); color: var(--accent); }
+    .year-pill.active {
+      background: var(--accent); border-color: var(--accent);
+      color: var(--white);
+    }
+    .year-pill.all-pill { font-size: 10px; letter-spacing: 0.5px; }
+
+    /* ── Route list ── */
+    #route-list-wrap {
+      flex: 1; overflow-y: auto; min-height: 0;
+    }
+    #route-list-wrap::-webkit-scrollbar { width: 3px; }
+    #route-list-wrap::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+    #route-count {
+      padding: 8px 16px 4px;
+      font-size: 10px; color: var(--ink-light); letter-spacing: 0.5px;
+    }
+
+    .route-item {
+    display: flex; align-items: center; gap: 0;
+    padding: 7px 16px; cursor: pointer; border-left: 3px solid transparent;
+    transition: all 0.12s; border: none; border-left: 3px solid transparent;
+    background: none; width: 100%; text-align: left;
+    }
+    .route-item:hover { background: var(--paper); }
+    .route-item.active {
+      background: var(--accent-pale); border-left-color: var(--accent);
+    }
+    .route-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-right: 10px;
+    }
+    .route-info { flex: 1; min-width: 0; }
+    .route-name {
+      font-size: 12.5px; color: var(--ink); font-weight: 400;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+    }
+    .route-item.active .route-name { color: var(--accent); font-weight: 500; }
+    .route-meta {
+      font-size: 10px; color: var(--ink-light); font-family: 'DM Mono', monospace;
+      margin-top: 1px;
+    }
+    .route-item.active .route-meta { color: var(--accent); opacity: 0.7; }
+    .route-km {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      color: var(--ink-light); flex-shrink: 0; margin-left: 8px;
+    }
+
+    .month-divider {
+      padding: 6px 16px 2px;
+      font-size: 9px; font-weight: 500; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--ink-light);
+      border-top: 1px solid var(--rule); margin-top: 4px;
+    }
+    .month-divider:first-child { border-top: none; margin-top: 0; }
+
+    /* ── Hero image ── */
+    #sidebar-hero {
+      flex-shrink: 0; width: 100%; height: 160px; overflow: hidden; position: relative;
+    }
+    #sidebar-hero img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      object-position: center center;
+    }
+    #sidebar-hero .hero-placeholder {
+      width: 100%; height: 100%;
+      background: linear-gradient(135deg, #2a7fb8 0%, #1a5a8a 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: rgba(255,255,255,0.5);
+      font-family: 'DM Mono', monospace; letter-spacing: 1px;
+    }
+
+    /* ── Map overlays ── */
+    #map-title {
+      position: fixed; top: 24px; z-index: 400;
+      text-align: center; pointer-events: none;
+      transition: left var(--transition);
+      display: none;
+    }
+    #map-title-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 52px; font-weight: 400; color: var(--ink); line-height: 1.1;
+      text-shadow: 0 2px 20px rgba(250,248,245,0.95), 0 0 60px rgba(250,248,245,0.9);
+    }
+
+    /* detail overlay removed */
+
+    /* ── Elevation panel ── */
+    #elev-panel {
+      position: fixed; bottom: 0; right: 0; height: 170px;
+      background: rgba(255,255,255,0.98); border-top: 1px solid var(--rule);
+      z-index: 500; display: none; flex-direction: column; padding: 12px 24px 14px;
+      transition: left var(--transition);
+    }
+    #elev-panel.visible { display: flex; }
+    #elev-header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; flex-shrink: 0; }
+    #elev-title { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 400; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+    .elev-stat { text-align: right; flex-shrink: 0; }
+    .elev-stat-num { font-size: 12px; font-weight: 500; font-family: 'DM Mono', monospace; color: var(--ink); }
+    .elev-stat-label { font-size: 9px; color: var(--ink-light); text-transform: uppercase; letter-spacing: 0.8px; }
+    #elev-strava { font-size: 10px; color: #FC4C02; text-decoration: none; font-weight: 500; flex-shrink: 0; }
+    #elev-strava:hover { text-decoration: underline; }
+    #elev-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--ink-light); flex-shrink: 0; transition: color 0.15s; }
+    #elev-close:hover { color: var(--ink); }
+    #elev-chart-wrap { flex: 1; position: relative; min-height: 80px; }
+    #elev-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+
+    .leaflet-control-attribution { font-size: 9px !important; }
+    .leaflet-control-zoom { margin-top: 20px !important; margin-left: 60px !important; }
+
+    .photo-pin-popup .leaflet-popup-content-wrapper { padding: 0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: none; }
+    .photo-pin-popup .leaflet-popup-content { margin: 0; }
+    .photo-pin-popup .leaflet-popup-tip-container { display: none; }
+    .photo-popup-img { width: 200px; height: 200px; object-fit: cover; display: block; }
+    .photo-pin-icon { width: 36px; height: 36px; background: white center/cover no-repeat; border-radius: 50%; border: 2px solid rgba(255,255,255,0.9); box-shadow: 0 2px 6px rgba(0,0,0,0.25); cursor: pointer; }
+
+    /* year colour legend on map */
+    #year-legend {
+      position: fixed; bottom: 12px; z-index: 400;
+      display: flex; gap: 12px; pointer-events: none;
+      transition: left var(--transition);
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-swatch { width: 20px; height: 3px; border-radius: 2px; }
+    .legend-label {
+      font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-mid);
+      text-shadow: 0 1px 8px rgba(250,248,245,0.98);
+    }
+
+    #loading-msg {
+      position: fixed; bottom: 50%; right: 50%; transform: translate(50%,50%);
+      z-index: 800; background: rgba(255,255,255,0.95); padding: 18px 28px;
+      border-radius: 12px; border: 1px solid var(--rule);
+      font-size: 13px; color: var(--ink-mid); display: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    #loading-msg.visible { display: block; }
+  #stat-tooltip { position: fixed; background: rgba(26,24,20,0.85); color: #fff; font-family: 'DM Mono', monospace; font-size: 11px; padding: 5px 9px; border-radius: 6px; pointer-events: none; z-index: 700; white-space: nowrap; display: none; }
+  [data-imperial] { cursor: default; }
+
+  /* ── Mobile bar ── */
+  #mobile-bar {
+    display: none; align-items: center; justify-content: center;
+    padding: 10px 16px 6px; position: relative; flex-shrink: 0;
+    background: var(--white); border-radius: 16px 16px 0 0;
+    cursor: pointer; user-select: none;
+  }
+  #mobile-handle-pill { width: 36px; height: 4px; background: var(--rule); border-radius: 2px; pointer-events: none; }
+  #mobile-map-btn {
+    position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; font-weight: 500; color: var(--accent);
+    background: var(--accent-pale); border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; padding: 5px 12px; border-radius: 20px;
+  }
+
+  /* ── Mobile-only elements (hidden on desktop) ── */
+  #mob-back-to-panel { display: none; }
+  #mob-home-link { display: none; }
+  #mob-route-title-pill { display: none; }
+
+  @media (max-width: 768px) {
+    body { display: block; }
+    #mobile-bar { display: flex; height: 36px; padding: 0 16px; }
+    .leaflet-control-zoom { display: none !important; }
+    #year-legend { display: none !important; }
+
+    #sidebar {
+      position: fixed !important;
+      bottom: 0; left: 0; right: 0; top: auto !important;
+      width: 100% !important; height: 62vh;
+      border-radius: 16px 16px 0 0;
+      box-shadow: 0 -4px 32px rgba(0,0,0,0.2);
+      transition: transform var(--transition) !important;
+      background: var(--white);
+    }
+    #sidebar.mobile-collapsed { transform: translateY(calc(100% - 36px)); }
+
+    #minimize-btn { display: none !important; }
+    #back-bar { display: none; }
+
+    #mob-home-link {
+      display: block;
+      position: fixed; top: 16px; left: 16px; z-index: 1000;
+      background: rgba(255,255,255,0.95); border-radius: 20px;
+      padding: 7px 14px; font-size: 12px; font-weight: 500; color: var(--ink);
+      text-decoration: none; box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* Hide hero image on mobile */
+    #sidebar-hero { display: none !important; }
+
+    /* Main panel: single scrollable unit */
+    #main-panel { display: block !important; flex: 1; min-height: 0; overflow-y: auto !important; overflow-x: hidden !important; }
+    #route-list-wrap { overflow-y: visible; height: auto; flex: none; min-height: 80px; }
+    #year-filter { position: sticky; top: 0; z-index: 5; background: var(--white); flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #year-filter::-webkit-scrollbar { display: none; }
+
+    /* Elevation panel: bottom of screen */
+    #elev-panel {
+      position: fixed; bottom: 0 !important; top: auto !important;
+      left: 0 !important; right: 0;
+      height: 185px;
+    }
+    #elev-title { display: none !important; }
+    #elev-header { justify-content: space-evenly; gap: 0; position: relative; }
+    .elev-stat { text-align: center; }
+    #elev-close { position: absolute; top: 0; right: 0; }
+
+    #mob-route-title-pill {
+      display: none; position: fixed; bottom: 192px; right: 20px;
+      z-index: 500; font-family: 'Playfair Display', serif;
+      font-size: 19px; font-weight: 400; color: var(--ink);
+      text-align: right; white-space: nowrap;
+      max-width: calc(100% - 120px); overflow: hidden; text-overflow: ellipsis;
+      text-shadow: 0 0 6px #fff, 0 0 12px #fff, 0 0 20px rgba(255,255,255,0.9), 1px 1px 4px #fff, -1px -1px 4px #fff, 1px -1px 4px #fff, -1px 1px 4px #fff;
+    }
+
+    #map-title { display: none !important; }
+
+    /* Back to routes button */
+    #mob-back-to-panel {
+      position: fixed; top: 16px; left: 16px; z-index: 1000;
+      background: rgba(255,255,255,0.95); border: none; border-radius: 20px;
+      padding: 7px 14px; font-size: 12px; font-weight: 500; color: var(--ink);
+      cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+      font-family: 'DM Sans', sans-serif;
+    }
+
+  }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+<a id="mob-home-link" href="index.html">← Tours</a>
+<button id="mob-back-to-panel">← Routes</button>
+<div id="mob-route-title-pill"></div>
+
+<div id="map-title">
+  <div id="map-title-text">NYC Bike + Brew</div>
+</div>
+
+
+
+<div id="sidebar">
+  <div id="mobile-bar">
+    <div id="mobile-handle-pill"></div>
+  </div>
+  <button id="minimize-btn" title="Minimise sidebar">‹</button>
+
+  <div id="minimized-strip">
+    <button style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--ink-light);" onclick="expandSidebar()">›</button>
+    <span class="minimized-label">Bike + Brew</span>
+  </div>
+
+  <div id="main-panel" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+
+    <div id="back-bar">
+      <a id="back-link" href="index.html">
+        <span>←</span>
+        <span>Back to Johnstone Cycling</span>
+      </a>
+    </div>
+
+    <div id="sidebar-hero">
+      <img src="assets/page_heros/bnb-hero-1.webp" alt="Bike and Brew"
+           onerror="this.parentElement.innerHTML='<div class=\'hero-placeholder\'>BIKE &amp; BREW</div>'">
+    </div>
+
+    <div id="club-header">
+      <img id="club-logo" src="assets/page_heros/BnB_Logo.webp" alt="Bike and Brew Logo"
+           onerror="this.style.display='none'">
+      <div id="club-header-text">
+        <div class="club-eyebrow">New York City · Every Tuesday</div>
+        <div id="club-title">NYC Bike + Brew</div>
+        <div id="club-subtitle">A Social Club for Bike and Beer Lovers in NYC! Social Rides Every Tuesday.</div>
+        <a href="https://www.instagram.com/nycbikeandbrew/" target="_blank" id="club-ig">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="#E1306C">
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+          </svg>
+          @nycbikeandbrew
+        </a>
+      </div>
+    </div>
+
+    <div id="stats-bar">
+      <div class="stat">
+        <div class="stat-num" id="stat-rides">—</div>
+        <div class="stat-label">Rides</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-km">—</div>
+        <div class="stat-label">mi</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-elev">—</div>
+        <div class="stat-label">↑ ft</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-years">—</div>
+        <div class="stat-label">Years</div>
+      </div>
+    </div>
+
+    <div id="chapters-bar">
+      <span id="chapters-label">Chapters:</span>
+      <a class="chapter-ig" href="https://www.instagram.com/sfbikeandbrew/" target="_blank">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="#E1306C"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+        SF Bike + Brew
+      </a>
+      <span class="chapter-divider">·</span>
+      <a class="chapter-ig" href="https://www.instagram.com/bikeandbrewdenver/" target="_blank">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="#E1306C"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+        Denver Bike + Brew
+      </a>
+    </div>
+
+    <div id="year-filter">
+      <button class="year-pill all-pill active" data-year="all">All years</button>
+    </div>
+
+    <div id="route-count"></div>
+    <div id="route-list-wrap">
+      <div id="route-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="elev-panel">
+  <div id="elev-header">
+    <div id="elev-title"></div>
+    <div class="elev-stat"><div class="elev-stat-num" id="elev-date"></div><div class="elev-stat-label">Date</div></div>
+    <div class="elev-stat"><div class="elev-stat-num" id="elev-km"></div><div class="elev-stat-label">Distance</div></div>
+    <div class="elev-stat"><div class="elev-stat-num" id="elev-gain"></div><div class="elev-stat-label">Climbing</div></div>
+    <a id="elev-strava" href="#" target="_blank">Strava ↗</a>
+    <button id="elev-close">×</button>
+  </div>
+  <div id="elev-chart-wrap"><canvas id="elev-canvas"></canvas></div>
+</div>
+
+<div id="loading-msg">Loading Tuesday rides…</div>
+
+<div id="stat-tooltip"></div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+
+function toMiles(km){return Math.round(km*0.621371).toLocaleString();}
+function toFeet(m){return Math.round(m*3.28084).toLocaleString();}
+(()=>{
+  const tip=document.getElementById('stat-tooltip');
+  document.addEventListener('mouseover',e=>{
+    const el=e.target.closest('[data-imperial]');
+    if(!el){tip.style.display='none';return;}
+    tip.textContent=el.dataset.imperial;
+    tip.style.display='block';
+    tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-28)+'px';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(tip.style.display==='block'){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-28)+'px';}
+  });
+  document.addEventListener('mouseout',e=>{
+    if(!e.relatedTarget?.closest('[data-imperial]')) tip.style.display='none';
+  });
+})();
+
+// ── Year colour palette ────────────────────────────────────────────────────
+const YEAR_COLORS = {
+  2021: '#2a7fb8',
+  2022: '#c4622d',
+  2023: '#3a9e6e',
+  2024: '#9b59b6',
+  2025: '#c0392b',
+};
+function yearColor(year) { return YEAR_COLORS[year] || '#888888'; }
+
+// ── Map setup ─────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: false }).setView([40.73, -73.98], 12);
+L.control.zoom({ position: 'topleft' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap © CARTO'
+}).addTo(map);
+
+const topoLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}',
+  { maxZoom: 17, maxNativeZoom: 9, attribution: 'Tiles © Esri' }
+).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+map.on('zoomend', () => {
+  topoLayer.setOpacity(map.getZoom() > 9 ? 0 : 1);
+});
+
+// ── Sidebar toggle ─────────────────────────────────────────────────────────
+document.getElementById('minimize-btn').addEventListener('click', () => {
+  const s = document.getElementById('sidebar');
+  const btn = document.getElementById('minimize-btn');
+  if (s.classList.contains('minimized')) {
+    expandSidebar();
+  } else {
+    s.classList.add('minimized');
+    btn.textContent = '›'; btn.title = 'Expand sidebar';
+    updateLayout();
+  }
+});
+function expandSidebar() {
+  const sidebar = document.getElementById('sidebar'), btn = document.getElementById('minimize-btn');
+  sidebar.classList.add('is-expanding');
+  sidebar.classList.remove('minimized');
+  btn.textContent = '‹'; btn.title = 'Minimise sidebar';
+  updateLayout();
+  setTimeout(() => sidebar.classList.remove('is-expanding'), 320);
+}
+function isMobile() { return window.innerWidth <= 768; }
+
+function getSidebarWidth() {
+  if (isMobile()) return 0;
+  return document.getElementById('sidebar').classList.contains('minimized') ? 48 : 320;
+}
+
+function mobileExpandSidebar() {
+  if (!isMobile()) return;
+  document.getElementById('sidebar').classList.remove('mobile-collapsed');
+}
+
+function updateLayout() {
+  if (isMobile()) return;
+  const sw = getSidebarWidth();
+  const mapW = window.innerWidth - sw;
+  document.getElementById('elev-panel').style.left = sw + 'px';
+}
+
+(function(){
+  const bar = document.getElementById('mobile-bar');
+  const s = document.getElementById('sidebar');
+  if (!bar) return;
+  bar.addEventListener('click', e => {
+    e.stopPropagation();
+    s.classList.toggle('mobile-collapsed');
+    if (!s.classList.contains('mobile-collapsed')) {
+      const backBtn = document.getElementById('mob-back-to-panel');
+      if (backBtn) backBtn.style.display = 'none';
+    }
+  });
+})();
+
+(function(){
+  const btn = document.getElementById('mob-back-to-panel');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    mobileExpandSidebar();
+    btn.style.display = 'none';
+    const titlePill = document.getElementById('mob-route-title-pill');
+    if (titlePill) titlePill.style.display = 'none';
+    const homeLink = document.getElementById('mob-home-link');
+    if (homeLink) homeLink.style.display = 'block';
+    document.getElementById('elev-panel').classList.remove('visible');
+    if (elevChart) { elevChart.destroy(); elevChart = null; }
+    clearElevDot();
+    activeFeature = null;
+    if (activeListBtn) { activeListBtn.classList.remove('active'); activeListBtn = null; }
+    restoreAllOpacity();
+  });
+})();
+new MutationObserver(updateLayout)
+  .observe(document.getElementById('sidebar'), { attributes: true, attributeFilter: ['class'] });
+window.addEventListener('resize', updateLayout);
+updateLayout();
+
+// ── State ─────────────────────────────────────────────────────────────────
+let allFeatures = [];
+let layersByFeature = new Map();   // feature → { vis, hit }
+let activeFeature = null;
+let activeListBtn = null;
+let currentYear = 'all';
+let elevChart = null;
+let elevDot = null;
+let currentCoords = [];
+
+// ── Elevation chart ────────────────────────────────────────────────────────
+function clearElevDot() {
+  if (elevDot) { map.removeLayer(elevDot); elevDot = null; }
+}
+
+function showElevation(feature) {
+  const p = feature.properties;
+  document.getElementById('elev-title').textContent = p.name;
+  const elevKmEl = document.getElementById('elev-km');
+  elevKmEl.textContent = p.distance_km ? toMiles(p.distance_km) + ' mi' : '—';
+  if (p.distance_km) elevKmEl.dataset.imperial = p.distance_km + ' km';
+  const elevGainEl = document.getElementById('elev-gain');
+  elevGainEl.textContent = toFeet(p.elevation_gain || 0) + ' ft';
+  elevGainEl.dataset.imperial = (p.elevation_gain || 0).toLocaleString() + ' m';
+  document.getElementById('elev-date').textContent = p.date
+    ? new Date(p.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+  const stravaLink = document.getElementById('elev-strava');
+  if (p.strava_url) { stravaLink.href = p.strava_url; stravaLink.style.display = ''; }
+  else              { stravaLink.style.display = 'none'; }
+
+  document.getElementById('elev-panel').classList.add('visible');
+  currentCoords = feature.geometry.type === 'LineString' ? feature.geometry.coordinates : [];
+
+  if (elevChart) { elevChart.destroy(); elevChart = null; }
+  clearElevDot();
+
+  const coords = currentCoords;
+  if (!coords.length || coords[0][2] == null) return;
+
+  const step = Math.max(1, Math.floor(coords.length / 300));
+  const idxRaw = [];
+  for (let i = 0; i < coords.length; i += step) idxRaw.push(i);
+  if (idxRaw[idxRaw.length - 1] !== coords.length - 1) idxRaw.push(coords.length - 1);
+
+  const pts = idxRaw.map(i => coords[i]);
+  let dist = 0;
+  const data = [], idxMap = [];
+  pts.forEach((pt, i) => {
+    if (i > 0) {
+      const p = pts[i - 1];
+      const R = 6371;
+      const dlat = (pt[1] - p[1]) * Math.PI / 180;
+      const dlon = (pt[0] - p[0]) * Math.PI / 180;
+      const a = Math.sin(dlat/2)**2 + Math.cos(p[1]*Math.PI/180)*Math.cos(pt[1]*Math.PI/180)*Math.sin(dlon/2)**2;
+      dist += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    data.push({ x: parseFloat(dist.toFixed(2)), y: pt[2] != null ? Math.round(pt[2]) : null });
+    idxMap.push(idxRaw[i]);
+  });
+
+  const valid = data.map(d => d.y).filter(e => e != null);
+  if (!valid.length) return;
+  const minE = Math.min(...valid), maxE = Math.max(...valid);
+  const range = maxE - minE || 20;
+  const color = yearColor(feature.properties.year);
+
+  const ctx = document.getElementById('elev-canvas').getContext('2d');
+  elevChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets: [{ data, borderColor: color, borderWidth: 1.5, backgroundColor: color + '22', fill: true, pointRadius: 0, tension: 0.3, spanGaps: true }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: i => (i[0].parsed.x * 0.621371).toFixed(1) + ' mi',
+            label: i => i.parsed.y != null ? Math.round(i.parsed.y * 3.28084) + ' ft' : ''
+          }
+        }
+      },
+      onHover: (event, elements) => {
+        if (elements && elements.length && currentCoords.length) {
+          const idx = Math.min(Math.max(0, idxMap[elements[0].index]), currentCoords.length - 1);
+          const c = currentCoords[idx];
+          clearElevDot();
+          elevDot = L.circleMarker([c[1], c[0]], {
+            radius: 7, fillColor: color, fillOpacity: 1, color: '#fff', weight: 2
+          }).addTo(map);
+        } else {
+          clearElevDot();
+        }
+      },
+      scales: {
+        x: { type: 'linear', min: 0, max: data[data.length-1].x,
+             ticks: { maxTicksLimit: 6, font: { size: 9 }, color: '#b0ada8', callback: v => (v * 0.621371).toFixed(1) + ' mi' },
+             grid: { color: '#f0ede8' } },
+        y: { min: Math.floor(minE - range * 0.05), max: Math.ceil(maxE + range * 0.05),
+             ticks: { maxTicksLimit: 5, font: { size: 9 }, color: '#b0ada8', callback: v => Math.round(v * 3.28084) + ' ft' },
+             grid: { color: '#f0ede8' } }
+      }
+    }
+  });
+}
+
+document.getElementById('elev-close').addEventListener('click', () => {
+  document.getElementById('elev-panel').classList.remove('visible');
+  if (elevChart) { elevChart.destroy(); elevChart = null; }
+  clearElevDot();
+  activeFeature = null;
+  if (activeListBtn) { activeListBtn.classList.remove('active'); activeListBtn = null; }
+  restoreAllOpacity();
+  if (isMobile()) {
+    mobileExpandSidebar();
+    const backBtn = document.getElementById('mob-back-to-panel');
+    if (backBtn) backBtn.style.display = 'none';
+    const titlePill = document.getElementById('mob-route-title-pill');
+    if (titlePill) titlePill.style.display = 'none';
+    const homeLink = document.getElementById('mob-home-link');
+    if (homeLink) homeLink.style.display = 'block';
+  }
+});
+
+// detail overlay removed
+
+// ── Route selection ────────────────────────────────────────────────────────
+function dimAllExcept(selectedFeature) {
+  allFeatures.forEach(f => {
+    if (!layersByFeature.has(f)) return;
+    const { vis } = layersByFeature.get(f);
+    if (f === selectedFeature) {
+      vis.setStyle({ weight: 5, opacity: 1 });
+      vis.bringToFront();
+    } else {
+      vis.setStyle({ weight: 1, opacity: 0.06 });
+    }
+  });
+}
+
+function restoreAllOpacity() {
+  allFeatures.forEach(f => {
+    if (!layersByFeature.has(f)) return;
+    const { vis } = layersByFeature.get(f);
+    vis.setStyle({ weight: 2, opacity: getLayerOpacity(f) });
+  });
+}
+
+function selectRoute(feature, listBtn) {
+  if (activeListBtn) activeListBtn.classList.remove('active');
+
+  activeFeature = feature;
+  activeListBtn = listBtn;
+
+  if (listBtn) listBtn.classList.add('active');
+  if (listBtn) listBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  dimAllExcept(feature);
+  showElevation(feature);
+
+  if (isMobile()) {
+    document.getElementById('sidebar').classList.add('mobile-collapsed');
+    const backBtn = document.getElementById('mob-back-to-panel');
+    if (backBtn) backBtn.style.display = 'block';
+    const homeLink = document.getElementById('mob-home-link');
+    if (homeLink) homeLink.style.display = 'none';
+    const titlePill = document.getElementById('mob-route-title-pill');
+    if (titlePill) { titlePill.textContent = feature.properties.name; titlePill.style.display = 'block'; }
+  }
+
+  if (feature.geometry.type === 'LineString') {
+    const latlngs = feature.geometry.coordinates.map(c => [c[1], c[0]]);
+    if (latlngs.length) {
+      const mob = isMobile();
+      map.fitBounds(L.latLngBounds(latlngs), {
+        paddingTopLeft: [mob ? 20 : getSidebarWidth() + 40, mob ? 20 : 80],
+        paddingBottomRight: [40, mob ? 220 : 200],
+      });
+    }
+  }
+}
+
+// ── Year filter ────────────────────────────────────────────────────────────
+function getLayerOpacity(feature) {
+  if (currentYear === 'all') return 0.7;
+  return feature.properties.year === parseInt(currentYear) ? 0.85 : 0.1;
+}
+
+function applyYearFilter(year) {
+  currentYear = year;
+  document.querySelectorAll('.year-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.year === String(year));
+  });
+
+  allFeatures.forEach(f => {
+    if (!layersByFeature.has(f)) return;
+    const { vis } = layersByFeature.get(f);
+    vis.setStyle({ opacity: getLayerOpacity(f), weight: f === activeFeature ? 5 : 2 });
+  });
+
+  renderList();
+
+  // Fit bounds to visible routes
+  const visible = allFeatures.filter(f =>
+    currentYear === 'all' || f.properties.year === parseInt(currentYear)
+  );
+  if (visible.length) {
+    const allBounds = visible
+      .filter(f => f.geometry.type === 'LineString')
+      .flatMap(f => f.geometry.coordinates.map(c => [c[1], c[0]]));
+    if (allBounds.length) {
+      // map extent intentionally unchanged on year filter
+    }
+  }
+}
+
+// ── List rendering ─────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function renderList() {
+  const list = document.getElementById('route-list');
+  list.innerHTML = '';
+
+  const visible = allFeatures.filter(f =>
+    currentYear === 'all' || f.properties.year === parseInt(currentYear)
+  );
+
+  document.getElementById('route-count').textContent =
+    `${visible.length} ride${visible.length !== 1 ? 's' : ''}`;
+
+  let lastMonth = null;
+  visible.forEach(feature => {
+    const p = feature.properties;
+    const month = p.date ? p.date.slice(0, 7) : '';
+    const monthLabel = p.date
+      ? new Date(p.date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+      : '';
+
+    if (month !== lastMonth) {
+      const div = document.createElement('div');
+      div.className = 'month-divider';
+      div.textContent = monthLabel;
+      list.appendChild(div);
+      lastMonth = month;
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'route-item';
+    if (feature === activeFeature) btn.classList.add('active');
+
+    const color = yearColor(p.year);
+    btn.innerHTML = `
+      <div class="route-dot" style="background:${color}"></div>
+      <div class="route-info">
+        <div class="route-name">${p.name || 'Tuesday Ride'}</div>
+        <div class="route-meta">${formatDate(p.date)}</div>
+      </div>
+      <div class="route-km">${p.distance_km ? toMiles(p.distance_km) + ' mi' : ''}</div>
+    `;
+    btn.addEventListener('click', () => selectRoute(feature, btn));
+    list.appendChild(btn);
+  });
+}
+
+// ── Build year legend ──────────────────────────────────────────────────────
+function buildLegend(years) {
+  const el = document.getElementById('year-legend');
+  if (!el) return;
+  el.innerHTML = '';
+  years.forEach(yr => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `
+      <div class="legend-swatch" style="background:${yearColor(yr)}"></div>
+      <span class="legend-label">${yr}</span>
+    `;
+    el.appendChild(item);
+  });
+}
+
+// ── Build year filter pills ────────────────────────────────────────────────
+function buildYearFilter(years) {
+  const filter = document.getElementById('year-filter');
+  years.forEach(yr => {
+    const btn = document.createElement('button');
+    btn.className = 'year-pill';
+    btn.dataset.year = yr;
+    btn.textContent = yr;
+    btn.style.borderColor = yearColor(yr);
+    btn.addEventListener('click', () => applyYearFilter(yr));
+    filter.appendChild(btn);
+  });
+  document.querySelector('.year-pill.all-pill').addEventListener('click', () => applyYearFilter('all'));
+}
+
+// ── Update global stats ────────────────────────────────────────────────────
+function updateStats(features) {
+  const totalKm = features.reduce((s, f) => s + (f.properties.distance_km || 0), 0);
+  const totalElev = features.reduce((s, f) => s + (f.properties.elevation_gain || 0), 0);
+  const years = new Set(features.map(f => f.properties.year));
+  document.getElementById('stat-rides').textContent = features.length;
+  const statKm = document.getElementById('stat-km');
+  statKm.textContent = toMiles(totalKm);
+  statKm.dataset.imperial = Math.round(totalKm).toLocaleString() + ' km';
+  const statElev = document.getElementById('stat-elev');
+  statElev.textContent = Math.round(totalElev * 3.28084 / 1000) + 'k';
+  statElev.dataset.imperial = Math.round(totalElev / 1000) + 'k m';
+  document.getElementById('stat-years').textContent = years.size;
+}
+
+// ── Load data ──────────────────────────────────────────────────────────────
+document.getElementById('loading-msg').classList.add('visible');
+
+fetch('tuesday_rides.geojson')
+  .then(r => {
+    if (!r.ok) throw new Error('tuesday_rides.geojson not found');
+    return r.json();
+  })
+  .then(data => {
+    document.getElementById('loading-msg').classList.remove('visible');
+
+    allFeatures = (data.features || [])
+      .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates.length)
+      .sort((a, b) => (a.properties.date || '').localeCompare(b.properties.date || ''));
+
+    if (!allFeatures.length) {
+      document.getElementById('route-count').textContent = 'No rides found in tuesday_rides.geojson';
+      return;
+    }
+
+    const years = [...new Set(allFeatures.map(f => f.properties.year))].sort();
+    buildYearFilter(years);
+    buildLegend(years);
+    updateStats(allFeatures);
+
+    // Add map layers
+    allFeatures.forEach(feature => {
+      const color = yearColor(feature.properties.year);
+      const vis = L.geoJSON(feature, { style: { color, weight: 2, opacity: 0.7 } }).addTo(map);
+      const hit = L.geoJSON(feature, { style: { color, weight: 18, opacity: 0 } }).addTo(map);
+
+      hit.on('click', () => {
+        // Find the matching list button (rendered lazily, so query after renderList)
+        const btn = [...document.querySelectorAll('.route-item')].find(el => {
+          const nameEl = el.querySelector('.route-name');
+          return nameEl && nameEl.textContent === (feature.properties.name || 'Tuesday Ride');
+        }) || null;
+        selectRoute(feature, btn);
+      });
+
+      layersByFeature.set(feature, { vis, hit });
+    });
+
+    renderList();
+
+    // Fit to all routes
+    const allCoords = allFeatures
+      .filter(f => f.geometry.type === 'LineString')
+      .flatMap(f => f.geometry.coordinates.map(c => [c[1], c[0]]));
+    if (allCoords.length) {
+      const bounds = L.latLngBounds(allCoords);
+      if (isMobile()) {
+        map.setView([40.680, -73.951], 11);
+      } else {
+        map.fitBounds(bounds, {
+          paddingTopLeft: [getSidebarWidth() + 40, 80],
+          paddingBottomRight: [40, 40],
+        });
+      }
+    }
+  })
+  .catch(err => {
+    document.getElementById('loading-msg').classList.remove('visible');
+    document.getElementById('route-count').innerHTML =
+      `<span style="color:#c4622d;padding:0 4px;">
+        tuesday_rides.geojson not found.<br>
+        Run <code>fetch_tuesday_rides.py</code> first.
+      </span>`;
+    console.error(err);
+  });
+
+// ── Club photo pins ────────────────────────────────────────────────────────
+let clubPhotoPinLayers = [];
+
+function updateClubPhotoPinVisibility() {
+  const zoom = map.getZoom();
+  const bounds = map.getBounds().pad(0.3);
+  clubPhotoPinLayers.forEach(({ marker, path }) => {
+    const inView = zoom >= 10 && bounds.contains(marker.getLatLng());
+    if (inView) {
+      if (!map.hasLayer(marker)) marker.addTo(map);
+      requestAnimationFrame(() => {
+        const el = marker.getElement();
+        if (el) {
+          const icon = el.querySelector('.photo-pin-icon');
+          if (icon && !icon.style.backgroundImage) icon.style.backgroundImage = `url('${path}')`;
+        }
+      });
+    } else {
+      if (map.hasLayer(marker)) map.removeLayer(marker);
+    }
+  });
+}
+
+function loadClubPhotoPins() {
+  fetch('club_photos.json').then(r => r.json()).then(photos => {
+    photos.forEach(photo => {
+      const icon = L.divIcon({ className: '', html: `<div class="photo-pin-icon"></div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+      const marker = L.marker([photo.lat, photo.lon], { icon });
+      const popup = L.popup({ className: 'photo-pin-popup', maxWidth: 200, offset: [0, -10] })
+        .setContent(`<img class="photo-popup-img" src="${photo.path}" alt="" loading="lazy">`);
+      marker.bindPopup(popup);
+      clubPhotoPinLayers.push({ marker, path: photo.path });
+    });
+    updateClubPhotoPinVisibility();
+  }).catch(() => {});
+}
+
+map.on('zoomend', updateClubPhotoPinVisibility);
+loadClubPhotoPins();
+</script>
+</body>
+</html>

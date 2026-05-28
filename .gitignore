@@ -1,0 +1,16 @@
+# Photos — hosted on Cloudflare R2, not in repo
+assets/Photos/
+
+# Sensitive — local Strava utility, contains API credentials
+assets/Strava/
+strava_token.json
+
+# Generated intermediates — not needed by the site
+tours.json
+
+# Unused scratch files
+photos.json
+resize_country_images.sh
+
+# macOS
+.DS_Store
