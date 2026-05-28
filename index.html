@@ -1290,6 +1290,7 @@ function showMobCountry(country, color){
     const cpW=isMobile()?0:(document.getElementById('country-panel').offsetWidth+20+20);
     fitBoundsWithSidebar(L.featureGroup(countryLayers),cpW,40);
   }, 500);
+  loadPhotoPins();
 }
 
 function showMobRouteList(country, color){
