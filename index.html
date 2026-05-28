@@ -1495,7 +1495,7 @@ function setCountryFloat(country,color,dateRange,stats){
   }
 }
 
-function hideCountryPanel(){document.getElementById('country-panel').classList.remove('visible');}
+function hideCountryPanel(){document.getElementById('country-panel').classList.remove('visible');disablePhotoPins();}
 
 function showCountryPanel(country){
   fetch(`assets/countries/${country}.json`)
@@ -1636,37 +1636,49 @@ fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/coun
 preloadGPXConnections();
 
 // ── Photo pins ──
-let photoPinLayers=[];
+let photoRawData=null;      // raw [{lat,lon,path}] — loaded once
+let photoMarkerCache={};    // index → Leaflet marker, created on demand
+let photoPinsEnabled=false; // only active when a country is selected
+
 function updatePhotoPinVisibility(){
+  if(!photoPinsEnabled||!photoRawData) return;
   const zoom=map.getZoom();
-  const bounds=map.getBounds().pad(0.3);
-  photoPinLayers.forEach(({marker,path})=>{
-    const inView=zoom>=9&&bounds.contains(marker.getLatLng());
+  const bounds=map.getBounds().pad(0.2);
+  photoRawData.forEach((photo,i)=>{
+    const ll=L.latLng(photo.lat,photo.lon);
+    const inView=zoom>=11&&bounds.contains(ll);
     if(inView){
+      if(!photoMarkerCache[i]){
+        const icon=L.divIcon({className:'',html:`<div class="photo-pin-icon"></div>`,iconSize:[36,36],iconAnchor:[18,18]});
+        const marker=L.marker(ll,{icon});
+        const popup=L.popup({className:'photo-pin-popup',maxWidth:200,offset:[0,-10]}).setContent(`<img class="photo-popup-img" src="${photo.path}" alt="" loading="lazy">`);
+        marker.bindPopup(popup);
+        photoMarkerCache[i]=marker;
+      }
+      const marker=photoMarkerCache[i];
       if(!map.hasLayer(marker)) marker.addTo(map);
       requestAnimationFrame(()=>{
         const el=marker.getElement();
-        if(el){
-          const icon=el.querySelector('.photo-pin-icon');
-          if(icon&&!icon.style.backgroundImage) icon.style.backgroundImage=`url('${path}')`;
-        }
+        if(el){const ic=el.querySelector('.photo-pin-icon');if(ic&&!ic.style.backgroundImage)ic.style.backgroundImage=`url('${photo.path}')`;}
       });
     } else {
-      if(map.hasLayer(marker)) map.removeLayer(marker);
+      if(photoMarkerCache[i]&&map.hasLayer(photoMarkerCache[i])) map.removeLayer(photoMarkerCache[i]);
     }
   });
 }
-function loadPhotoPins(){
+
+function enablePhotoPins(){
+  if(photoRawData){photoPinsEnabled=true;updatePhotoPinVisibility();return;}
   fetch('touring_photos.json').then(r=>r.json()).then(photos=>{
-    photos.forEach(photo=>{
-      const icon=L.divIcon({className:'',html:`<div class="photo-pin-icon"></div>`,iconSize:[36,36],iconAnchor:[18,18]});
-      const marker=L.marker([photo.lat,photo.lon],{icon});
-      const popup=L.popup({className:'photo-pin-popup',maxWidth:200,offset:[0,-10]}).setContent(`<img class="photo-popup-img" src="${photo.path}" alt="" loading="lazy">`);
-      marker.bindPopup(popup);
-      photoPinLayers.push({marker,path:photo.path});
-    });
+    photoRawData=photos;
+    photoPinsEnabled=true;
     updatePhotoPinVisibility();
   }).catch(()=>{});
+}
+
+function disablePhotoPins(){
+  photoPinsEnabled=false;
+  Object.values(photoMarkerCache).forEach(m=>{if(map.hasLayer(m))map.removeLayer(m);});
 }
 
 // ── Elevation ──
@@ -1820,6 +1832,7 @@ function selectCountry(countryData,country,features,color){
   fitBoundsWithSidebar(L.featureGroup(countryData.map(d=>d.visLayer)),420,40);
   showCountryPanel(country);
   showResetBtn();
+  enablePhotoPins();
 }
 
 function updateTourButtonSubtitles(){
@@ -2070,7 +2083,7 @@ fetch('routes.geojson')
       });
     });
 
-    loadPhotoPins();
+    // photo pins loaded on demand when a country is selected
   });
 </script>
 </body>
