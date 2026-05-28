@@ -1646,7 +1646,7 @@ function updatePhotoPinVisibility(){
   const bounds=map.getBounds().pad(0.2);
   photoRawData.forEach((photo,i)=>{
     const ll=L.latLng(photo.lat,photo.lon);
-    const inView=zoom>=11&&bounds.contains(ll);
+    const inView=zoom>=9&&bounds.contains(ll);
     if(inView){
       if(!photoMarkerCache[i]){
         const icon=L.divIcon({className:'',html:`<div class="photo-pin-icon"></div>`,iconSize:[36,36],iconAnchor:[18,18]});
