@@ -554,8 +554,6 @@
     .elev-stat { text-align: right; flex-shrink: 0; }
     .elev-stat-num { font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; color: var(--ink); }
     .elev-stat-label { font-size: 9px; color: var(--ink-light); text-transform: uppercase; letter-spacing: 0.8px; }
-    #elev-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--ink-light); padding: 0; flex-shrink: 0; transition: color 0.15s; }
-    #elev-close:hover { color: var(--ink); }
     #elev-chart-wrap { flex: 1; position: relative; min-height: 100px; width: 100%; }
     #elev-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
 
@@ -812,7 +810,6 @@
       #elev-title { display: none !important; }
       #elev-header { justify-content: space-between; gap: 0; position: relative; width: 100%; }
       .elev-stat { text-align: center; }
-      #elev-close { position: absolute; top: 0; right: 0; }
       #mob-routes-back { display: none !important; }
       #mob-country-back { display: none !important; }
       #country-float { display: none !important; }
@@ -1089,7 +1086,6 @@
     <div class="elev-stat"><div class="elev-stat-num" id="elev-date"></div><div class="elev-stat-label">Date</div></div>
     <div class="elev-stat"><div class="elev-stat-num" id="elev-km"></div><div class="elev-stat-label">Distance</div></div>
     <div class="elev-stat"><div class="elev-stat-num" id="elev-gain"></div><div class="elev-stat-label">Climbing</div></div>
-    <button id="elev-close">×</button>
   </div>
   <div id="elev-chart-wrap"><canvas id="elev-canvas"></canvas></div>
 </div>
@@ -2052,18 +2048,6 @@ function buildCountryList(countries){
 }
 
 document.getElementById('country-panel-close').addEventListener('click',hideCountryPanel);
-document.getElementById('elev-close').addEventListener('click',()=>{
-  document.getElementById('elev-panel').classList.remove('visible');
-  clearElevDot();
-  if(elevChart){elevChart.destroy();elevChart=null;}
-  if(isMobile()){
-    document.getElementById('mob-back-to-routes').style.display='none';
-    const p=document.getElementById('mob-route-title-pill'); if(p) p.style.display='none';
-    const s=document.getElementById('sidebar');
-    s.classList.remove('mobile-collapsed','mobile-landing');
-    showMobRouteList(mobCurrentCountry, mobCurrentColor);
-  }
-});
 document.getElementById('nav-back').addEventListener('click',goBack);
 
 fetch('routes.geojson')
