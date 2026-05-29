@@ -1617,7 +1617,15 @@ function updateOverlayPositions(){
   resetBtn.style.left=(sidebarW+16)+'px';
 }
 new MutationObserver(updateOverlayPositions).observe(document.getElementById('sidebar'),{attributes:true,attributeFilter:['class']});
-window.addEventListener('resize',updateOverlayPositions);
+window.addEventListener('resize',()=>{
+  updateOverlayPositions();
+  const s=document.getElementById('sidebar');
+  if(isMobile()&&!s.classList.contains('tour-active')){
+    s.classList.add('mobile-landing');
+  } else if(!isMobile()){
+    s.classList.remove('mobile-landing','mobile-collapsed');
+  }
+});
 updateOverlayPositions();
 if(isMobile()){
   document.getElementById('sidebar').classList.add('mobile-landing');
