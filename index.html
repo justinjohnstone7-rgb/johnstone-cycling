@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Johnstone Cycling</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono&display=swap" rel="stylesheet">
   <style>
@@ -539,6 +540,8 @@
     .photo-pin-popup .leaflet-popup-tip-container { display: none; }
     .photo-popup-img { width: 200px; height: 200px; object-fit: cover; display: block; }
     .photo-pin-icon { width: 36px; height: 36px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.25); cursor: pointer; background-size: cover; background-position: center center; background-repeat: no-repeat; }
+    .photo-cluster { display: flex; align-items: center; justify-content: center; }
+    .photo-cluster-inner { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: white; font-size: 11px; font-weight: 500; font-family: 'DM Mono', monospace; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); cursor: pointer; }
 
     #elev-panel {
       position: fixed; bottom: 0; right: 0; height: 180px;
@@ -1091,6 +1094,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 
@@ -1661,7 +1665,7 @@ function updateSeaBorderVisibility(){
 }
 
 map.on('zoomend',()=>{topoLayer.setOpacity(map.getZoom()>9?0:1);updateArcVisibility();updatePhotoPinVisibility();updateSeaBorderVisibility();});
-map.on('moveend',()=>{updateArcVisibility();updatePhotoPinVisibility();});
+map.on('moveend',()=>{updateArcVisibility();});
 
 const SEA_BORDER_COUNTRIES=new Set(['VNM','LAO','KHM','THA','MYS']);
 fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
@@ -1676,34 +1680,42 @@ fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/coun
 preloadGPXConnections();
 
 // ── Photo pins ──
-let photoRawData=null;   // raw [{lat,lon,path}] — loaded once
-let photoMarkerCache={}; // index → Leaflet marker, created on demand
+let photoRawData=null;
+let photoClusterGroup=null;
+
+function initPhotoCluster(){
+  photoClusterGroup=L.markerClusterGroup({
+    maxClusterRadius:60,
+    showCoverageOnHover:false,
+    zoomToBoundsOnClick:true,
+    iconCreateFunction:cluster=>L.divIcon({
+      className:'photo-cluster',
+      html:`<div class="photo-cluster-inner">${cluster.getChildCount()}</div>`,
+      iconSize:[44,44],iconAnchor:[22,22]
+    })
+  });
+  photoRawData.forEach(photo=>{
+    const icon=L.divIcon({
+      className:'',
+      html:`<div class="photo-pin-icon" style="background-image:url('${photo.thumb||photo.path}')"></div>`,
+      iconSize:[36,36],iconAnchor:[18,18]
+    });
+    const marker=L.marker([photo.lat,photo.lon],{icon});
+    const popup=L.popup({className:'photo-pin-popup',maxWidth:200,offset:[0,-10]})
+      .setContent(`<img class="photo-popup-img" src="${photo.path}" alt="" loading="lazy">`);
+    marker.bindPopup(popup);
+    photoClusterGroup.addLayer(marker);
+  });
+}
 
 function updatePhotoPinVisibility(){
   if(!photoRawData) return;
-  const zoom=map.getZoom();
-  const bounds=map.getBounds().pad(0.2);
-  photoRawData.forEach((photo,i)=>{
-    const ll=L.latLng(photo.lat,photo.lon);
-    const inView=zoom>=9&&bounds.contains(ll);
-    if(inView){
-      if(!photoMarkerCache[i]){
-        const icon=L.divIcon({className:'',html:`<div class="photo-pin-icon"></div>`,iconSize:[36,36],iconAnchor:[18,18]});
-        const marker=L.marker(ll,{icon});
-        const popup=L.popup({className:'photo-pin-popup',maxWidth:200,offset:[0,-10]}).setContent(`<img class="photo-popup-img" src="${photo.path}" alt="" loading="lazy">`);
-        marker.bindPopup(popup);
-        photoMarkerCache[i]=marker;
-      }
-      const marker=photoMarkerCache[i];
-      if(!map.hasLayer(marker)) marker.addTo(map);
-      requestAnimationFrame(()=>{
-        const el=marker.getElement();
-        if(el){const ic=el.querySelector('.photo-pin-icon');if(ic&&!ic.style.backgroundImage)ic.style.backgroundImage=`url('${photo.thumb||photo.path}')`;}
-      });
-    } else {
-      if(photoMarkerCache[i]&&map.hasLayer(photoMarkerCache[i])) map.removeLayer(photoMarkerCache[i]);
-    }
-  });
+  if(map.getZoom()>=9){
+    if(!photoClusterGroup) initPhotoCluster();
+    if(!map.hasLayer(photoClusterGroup)) map.addLayer(photoClusterGroup);
+  } else {
+    if(photoClusterGroup&&map.hasLayer(photoClusterGroup)) map.removeLayer(photoClusterGroup);
+  }
 }
 
 function loadPhotoPins(){
