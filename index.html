@@ -1698,7 +1698,7 @@ function updatePhotoPinVisibility(){
       if(!map.hasLayer(marker)) marker.addTo(map);
       requestAnimationFrame(()=>{
         const el=marker.getElement();
-        if(el){const ic=el.querySelector('.photo-pin-icon');if(ic&&!ic.style.backgroundImage)ic.style.backgroundImage=`url('${photo.path}')`;}
+        if(el){const ic=el.querySelector('.photo-pin-icon');if(ic&&!ic.style.backgroundImage)ic.style.backgroundImage=`url('${photo.thumb||photo.path}')`;}
       });
     } else {
       if(photoMarkerCache[i]&&map.hasLayer(photoMarkerCache[i])) map.removeLayer(photoMarkerCache[i]);
