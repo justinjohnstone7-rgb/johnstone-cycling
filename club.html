@@ -263,7 +263,7 @@
     .photo-cluster-inner { width: 48px; height: 48px; border-radius: 50%; border: 2.5px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.3); cursor: pointer; overflow: hidden; background: #e8e4de; position: relative; }
     .photo-cluster-inner img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .photo-cluster-count { position: absolute; bottom: 3px; right: 3px; background: rgba(0,0,0,0.62); color: white; font-size: 9px; font-family: 'DM Mono', monospace; padding: 1px 4px; border-radius: 6px; line-height: 1.5; pointer-events: none; }
-    #photo-toggle-btn { position: fixed; top: 24px; left: 16px; z-index: 600; background: rgba(255,255,255,0.92); border: 1px solid rgba(0,0,0,0.1); border-radius: 20px; padding: 7px 14px; font-size: 12px; font-weight: 500; color: #1a1814; cursor: pointer; font-family: 'DM Sans', sans-serif; box-shadow: 0 2px 12px rgba(0,0,0,0.14); transition: background 0.15s, opacity 0.2s; display: none; align-items: center; gap: 6px; letter-spacing: 0.3px; }
+    #photo-toggle-btn { position: fixed; top: 64px; left: 336px; z-index: 600; background: rgba(255,255,255,0.92); border: 1px solid rgba(0,0,0,0.1); border-radius: 20px; padding: 7px 14px; font-size: 12px; font-weight: 500; color: #1a1814; cursor: pointer; font-family: 'DM Sans', sans-serif; box-shadow: 0 2px 12px rgba(0,0,0,0.14); transition: background 0.15s, opacity 0.2s; display: none; align-items: center; gap: 6px; letter-spacing: 0.3px; }
     #photo-toggle-btn:hover { background: white; }
     #photo-toggle-btn.off { opacity: 0.55; }
 
@@ -1055,7 +1055,11 @@ function loadClubPhotoPins() {
       clubClusterGroup.addLayer(marker);
     });
     map.addLayer(clubClusterGroup);
-    if (!isMobile()) document.getElementById('photo-toggle-btn').style.display = 'flex';
+    if (!isMobile()) {
+      const btn = document.getElementById('photo-toggle-btn');
+      btn.style.left = (getSidebarWidth() + 16) + 'px';
+      btn.style.display = 'flex';
+    }
   }).catch(() => {});
 }
 
