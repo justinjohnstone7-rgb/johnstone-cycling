@@ -1621,7 +1621,9 @@ function updateOverlayPositions(){
   overlay.style.transform='translateX(-50%)';
   overlay.style.maxWidth=(mapW-80)+'px';
   const resetBtn=document.getElementById('reset-extent-btn');
+  const photoBtn=document.getElementById('photo-toggle-btn');
   resetBtn.style.left=(sidebarW+16)+'px';
+  photoBtn.style.left=(sidebarW+16)+'px';
 }
 new MutationObserver(updateOverlayPositions).observe(document.getElementById('sidebar'),{attributes:true,attributeFilter:['class']});
 window.addEventListener('resize',()=>{
