@@ -1203,10 +1203,17 @@ function hideArcs() {
 function updateArcVisibility() {
   if(!arcLayers.length) return;
   const bounds=map.getBounds();
+  const tooltip=document.getElementById('arc-tooltip');
   drawnConnections.forEach((conn,i)=>{
     const visible=bounds.contains(L.latLng(conn.from[0],conn.from[1]))&&bounds.contains(L.latLng(conn.to[0],conn.to[1]));
     const visArc=arcLayers[i*2];
+    const hitArc=arcLayers[i*2+1];
     if(visArc) visArc.setStyle({opacity:visible?0.45:0});
+    if(hitArc) {
+      const el=hitArc.getElement();
+      if(el) el.style.pointerEvents=visible?'':'none';
+      if(!visible) tooltip.style.display='none';
+    }
   });
 }
 
